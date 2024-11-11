@@ -1,0 +1,41 @@
+<!-- templates/metrics.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4>Training Accuracy</h4>
+            </div>
+            <div class="card-body">
+                <img src="{{ url_for('static', filename=accuracy_img) }}" class="img-fluid" alt="Accuracy Plot">
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4>Training Loss</h4>
+            </div>
+            <div class="card-body">
+                <img src="{{ url_for('static', filename=loss_img) }}" class="img-fluid" alt="Loss Plot">
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header">
+                <h4>Confusion Matrix</h4>
+            </div>
+            <div class="card-body">
+                <img src="{{ url_for('static', filename=confusion_matrix_img) }}" class="img-fluid"
+                    alt="Confusion Matrix">
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

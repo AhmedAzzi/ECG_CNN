@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h4>Upload ECG Data</h4>
+            </div>
+            <div class="card-body">
+                <form id="upload-form">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">ECG Record Files (.dat and .hea files)</label>
+                        <input type="file" class="form-control" id="file" name="file" multiple required>
+                        <small class="form-text text-muted">Please select both .dat and .hea files for your ECG
+                            record</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Analyze</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Animation Container -->
+<div id="loading-container" class="row mt-4" style="display: none;">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="mb-4">
+                    <!-- ECG Line Animation -->
+                    <svg class="w-100" style="max-width: 300px; height: 100px;" viewBox="0 0 300 100">
+                        <path class="ecg-line" d="M0,50 L50,50 L60,20 L70,80 L80,50 L100,50" fill="none"
+                            stroke="#0d6efd" stroke-width="2" stroke-linecap="round">
+                            <animate attributeName="d" dur="2s" repeatCount="indefinite" values="M0,50 L50,50 L60,20 L70,80 L80,50 L300,50;
+                                            M-300,50 L-250,50 L-240,20 L-230,80 L-220,50 L0,50" />
+                        </path>
+                    </svg>
+                </div>
+
+                <h5 class="card-title mb-3" id="status-text">Analyzing ECG Data...</h5>
+
+                <!-- Bootstrap Progress Bar -->
+                <div class="progress" style="height: 10px;">
+                    <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated"
+                        role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Final Prediction Summary -->
+<div id="final-prediction" class="row mt-4" style="display: none;">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Final Prediction Summary</h4>
+            </div>
+            <div class="card-body">
+                <h5 class="card-title">Primary Diagnosis</h5>
+                <div class="diagnosis-box p-3 border rounded">
+                    <h3 id="final-class" class="text-primary mb-3"></h3>
+                    <div class="progress mb-2">
+                        <div id="confidence-bar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <p class="text-muted">Confidence Level: <span id="confidence-value"></span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results Container -->
+<div id="results" class="mt-4" style="display: none;">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Signal Visualization</h4>
+                </div>
+                <div class="card-body">
+                    <img id="signal-plot" class="img-fluid" alt="ECG Signal Plot">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <h4>Predictions</h4>
+            <div id="predictions-container">
+                <!-- Predictions will be inserted here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<style>
+    @keyframes pulse {
+        0% {
+            transform: scale(1);
+        }
+
+        50% {
+            transform: scale(1.05);
+        }
+
+        100% {
+            transform: scale(1);
+        }
+    }
+
+    .ecg-line {
+        animation: pulse 1s ease-in-out infinite;
+    }
+</style>
+
+<script>
+    const loadingStates = [
+        { text: "Loading ECG data...", progress: 20 },
+        { text: "Applying Kalman filter...", progress: 40 },
+        { text: "Denoising signal...", progress: 60 },
+        { text: "Running analysis...", progress: 80 },
+        { text: "Generating results...", progress: 95 }
+    ];
+
+    function updateLoadingState(index) {
+        if (index >= loadingStates.length) return;
+
+        const progressBar = document.getElementById('progress-bar');
+        const statusText = document.getElementById('status-text');
+
+        progressBar.style.width = loadingStates[index].progress + '%';
+        progressBar.setAttribute('aria-valuenow', loadingStates[index].progress);
+        statusText.textContent = loadingStates[index].text;
+    }
+
+    function simulateLoading() {
+        loadingStates.forEach((state, index) => {
+            setTimeout(() => updateLoadingState(index), index * 800);
+        });
+    }
+
+    document.getElementById('upload-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData();
+        const fileInput = document.getElementById('file');
+        const loadingContainer = document.getElementById('loading-container');
+        const resultsContainer = document.getElementById('results');
+
+        // Add all selected files to the form data
+        for (let i = 0; i < fileInput.files.length; i++) {
+            formData.append('file', fileInput.files[i]);
+        }
+
+        try {
+            // Show loading animation
+            loadingContainer.style.display = 'block';
+            resultsContainer.style.display = 'none';
+
+            // Start loading animation
+            simulateLoading();
+
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                // Complete the progress bar
+                document.getElementById('progress-bar').style.width = '100%';
+                document.getElementById('status-text').textContent = 'Analysis complete!';
+
+                // Hide loading animation after a short delay
+                setTimeout(() => {
+                    loadingContainer.style.display = 'none';
+                    resultsContainer.style.display = 'block';
+
+                    // Update results
+                    document.getElementById('signal-plot').src = 'data:image/png;base64,' + data.signal_plot;
+
+                    const predictionsContainer = document.getElementById('predictions-container');
+                    predictionsContainer.innerHTML = '';
+
+                    data.predictions.forEach((result, index) => {
+                        const card = document.createElement('div');
+                        card.className = 'card result-card';
+                        card.innerHTML = `
+                        <div class="card-header">
+                            Segment ${result.segment} - Prediction: ${result.prediction}
+                        </div>
+                        <div class="card-body">
+                            <canvas id="chart-${index}" class="prediction-chart"></canvas>
+                        </div>
+                    `;
+                        predictionsContainer.appendChild(card);
+
+                        // Create probability chart
+                        const ctx = document.getElementById(`chart-${index}`).getContext('2d');
+                        new Chart(ctx, {
+                            type: 'bar',
+                            data: {
+                                labels: Object.keys(result.probabilities),
+                                datasets: [{
+                                    label: 'Class Probabilities',
+                                    data: Object.values(result.probabilities),
+                                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                                    borderColor: 'rgba(54, 150, 235, 1)',
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        max: 1
+                                    }
+                                }
+                            }
+                        });
+                    });
+
+                    // Update final prediction
+                    if (data.final_prediction) {
+                        updateFinalPrediction(data.final_prediction);
+                    }
+                }, 1000);
+            } else {
+                loadingContainer.style.display = 'none';
+                predictionsContainer.style.display = 'none'
+                alert('Error: ' + data.error);
+            }
+        } catch (error) {
+            loadingContainer.style.display = 'none';
+            console.error('Error uploading files:', error);
+            alert('An error occurred while uploading files.');
+        }
+    });
+
+    function updateFinalPrediction(finalPrediction) {
+        document.getElementById('final-class').textContent = finalPrediction.class;
+        document.getElementById('confidence-value').textContent = finalPrediction.confidence + '%';
+
+        // Update confidence bar
+        const confidenceBar = document.getElementById('confidence-bar');
+        confidenceBar.style.width = finalPrediction.confidence + '%';
+        confidenceBar.setAttribute('aria-valuenow', finalPrediction.confidence);
+
+        // Show final prediction summary
+        document.getElementById('final-prediction').style.display = 'block';
+    }
+</script>
+{% endblock %}
